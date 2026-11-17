@@ -44,6 +44,14 @@ namespace ExchangeRateSync.Data
                 entity.Property(e => e.ErrorMessage)
                     .HasMaxLength(2000);
 
+                // SQL Server's datetime2 does not store DateTimeKind; mark values read from the database as UTC
+                // so they are serialized with a trailing "Z".
+                entity.Property(e => e.StartedAtUtc)
+                    .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+                entity.Property(e => e.FinishedAtUtc)
+                    .HasConversion(v => v, v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
                 entity.HasIndex(e => e.StartedAtUtc);
             });
         }
