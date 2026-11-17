@@ -74,7 +74,7 @@ public class ExchangeRateSyncService(
 
             // Discard any pending rate changes so only the failed log entry is saved.
             dbContext.ChangeTracker.Clear();
-            dbContext.SyncLogs.Attach(syncLog);
+            dbContext.SyncLogs.Update(syncLog);
 
             syncLog.Status = SyncStatus.Failed;
             syncLog.InsertedCount = 0;

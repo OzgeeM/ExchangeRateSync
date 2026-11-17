@@ -16,6 +16,7 @@ public class ExchangeRateSyncWorker(
     {
         try
         {
+            await MarkInterruptedRunsAsFailedAsync(stoppingToken);
             if (await IsCatchUpNeededAsync(stoppingToken))
             {
                 logger.LogInformation("No successful sync since the last scheduled run. Running catch-up sync.");
@@ -65,6 +66,27 @@ public class ExchangeRateSyncWorker(
             logger.LogError(ex, "Scheduled sync could not be completed.");
         }
     }
+
+    private async Task MarkInterruptedRunsAsFailedAsync(CancellationToken stoppingToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // The sync lock lives in memory, so nothing can be running when the application starts.
+        // Any "Running" entry left in the database was interrupted by a previous shutdown.
+        var interruptedCount = await dbContext.SyncLogs
+            .Where(l => l.Status == SyncStatus.Running)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(l => l.Status, SyncStatus.Failed)
+                .SetProperty(l => l.ErrorMessage, "Interrupted: the application stopped before the sync finished."),
+                stoppingToken);
+
+        if (interruptedCount > 0)
+        {
+            logger.LogWarning("Marked {Count} interrupted sync run(s) as failed.", interruptedCount);
+        }
+    }
+
 
     private async Task<bool> IsCatchUpNeededAsync(CancellationToken stoppingToken)
     {
